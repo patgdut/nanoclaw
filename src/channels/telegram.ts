@@ -56,8 +56,6 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-
-
 export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
@@ -107,12 +105,12 @@ export class TelegramChannel implements Channel {
     this.bot.command('help', (ctx) => {
       ctx.reply(
         `Commands:\n` +
-        `/start - Start a conversation\n` +
-        `/help - Show this help\n` +
-        `/tasks - List scheduled tasks\n` +
-        `/reset - Reset conversation memory\n` +
-        `/ping - Check bot status\n` +
-        `/chatid - Get this chat's registration ID`,
+          `/start - Start a conversation\n` +
+          `/help - Show this help\n` +
+          `/tasks - List scheduled tasks\n` +
+          `/reset - Reset conversation memory\n` +
+          `/ping - Check bot status\n` +
+          `/chatid - Get this chat's registration ID`,
       );
     });
 
@@ -150,7 +148,9 @@ export class TelegramChannel implements Channel {
         return;
       }
       this.opts.clearSession(group.folder);
-      ctx.reply('Conversation memory cleared. Next message starts a fresh session.');
+      ctx.reply(
+        'Conversation memory cleared. Next message starts a fresh session.',
+      );
     });
 
     this.bot.on('message:text', async (ctx) => {
@@ -195,8 +195,15 @@ export class TelegramChannel implements Channel {
       }
 
       // Store chat metadata for discovery
-      const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-      this.opts.onChatMetadata(chatJid, timestamp, chatName, 'telegram', isGroup);
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      this.opts.onChatMetadata(
+        chatJid,
+        timestamp,
+        chatName,
+        'telegram',
+        isGroup,
+      );
 
       // Only deliver full message for registered groups
       const group = this.opts.registeredGroups()[chatJid];
@@ -239,8 +246,15 @@ export class TelegramChannel implements Channel {
         'Unknown';
       const caption = ctx.message.caption ? ` ${ctx.message.caption}` : '';
 
-      const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-      this.opts.onChatMetadata(chatJid, timestamp, undefined, 'telegram', isGroup);
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      this.opts.onChatMetadata(
+        chatJid,
+        timestamp,
+        undefined,
+        'telegram',
+        isGroup,
+      );
       this.opts.onMessage(chatJid, {
         id: ctx.message.message_id.toString(),
         chat_jid: chatJid,
@@ -254,9 +268,7 @@ export class TelegramChannel implements Channel {
 
     this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
-    this.bot.on('message:voice', (ctx) =>
-      storeNonText(ctx, '[Voice message]'),
-    );
+    this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
     this.bot.on('message:document', (ctx) => {
       const name = ctx.message.document?.file_name || 'file';
@@ -310,17 +322,28 @@ export class TelegramChannel implements Channel {
 
     try {
       for (const chunk of chunks) {
-        await this.bot.api.sendMessage(numericId, chunk, { parse_mode: 'HTML' });
+        await this.bot.api.sendMessage(numericId, chunk, {
+          parse_mode: 'HTML',
+        });
       }
       logger.info({ jid, length: text.length }, 'Telegram message sent');
     } catch (htmlErr) {
       // HTML parse error — fall back to plain text
-      logger.warn({ jid, err: htmlErr }, 'HTML send failed, retrying as plain text');
+      logger.warn(
+        { jid, err: htmlErr },
+        'HTML send failed, retrying as plain text',
+      );
       try {
         for (let i = 0; i < text.length; i += MAX_LENGTH) {
-          await this.bot.api.sendMessage(numericId, text.slice(i, i + MAX_LENGTH));
+          await this.bot.api.sendMessage(
+            numericId,
+            text.slice(i, i + MAX_LENGTH),
+          );
         }
-        logger.info({ jid, length: text.length }, 'Telegram message sent (plain text fallback)');
+        logger.info(
+          { jid, length: text.length },
+          'Telegram message sent (plain text fallback)',
+        );
       } catch (err) {
         logger.error({ jid, err }, 'Failed to send Telegram message');
       }
