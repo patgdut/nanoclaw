@@ -97,11 +97,9 @@ export async function run(_args: string[]): Promise<void> {
   // 3. Check credentials
   let credentials = 'missing';
   const envFile = path.join(projectRoot, '.env');
-  if (fs.existsSync(envFile)) {
-    const envContent = fs.readFileSync(envFile, 'utf-8');
-    if (/^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=/m.test(envContent)) {
-      credentials = 'configured';
-    }
+  const envContent = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf-8') : '';
+  if (/^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN)=/m.test(envContent)) {
+    credentials = 'configured';
   }
 
   // 4. Check WhatsApp auth
@@ -138,10 +136,11 @@ export async function run(_args: string[]): Promise<void> {
   }
 
   // Determine overall status
+  const telegramOnly = process.env.TELEGRAM_ONLY === 'true' || envContent?.includes('TELEGRAM_ONLY=true');
   const status =
     service === 'running' &&
     credentials !== 'missing' &&
-    whatsappAuth !== 'not_found' &&
+    (telegramOnly || whatsappAuth !== 'not_found') &&
     registeredGroups > 0
       ? 'success'
       : 'failed';

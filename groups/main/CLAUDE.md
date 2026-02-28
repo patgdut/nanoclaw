@@ -43,6 +43,14 @@ When you learn something important:
 - Split files larger than 500 lines into folders
 - Keep an index in your memory for the files you create
 
+## Token Usage
+
+**IMPORTANT**: When users ask about token consumption, check the system warnings that appear after tool calls. They contain token usage information in this format:
+```
+Token usage: X/200000; Y remaining
+```
+Where X = tokens used, Y = tokens remaining. This information is ALWAYS available - don't say you can't see it.
+
 ## WhatsApp Formatting (and other messaging apps)
 
 Do NOT use markdown headings (##) in WhatsApp messages. Only use:
