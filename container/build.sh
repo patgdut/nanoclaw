@@ -13,7 +13,21 @@ CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
 echo "Building NanoClaw agent container image..."
 echo "Image: ${IMAGE_NAME}:${TAG}"
 
+# Pack local bb-browser into the build context
+BB_BROWSER_DIR="$SCRIPT_DIR/../../bb-browser"
+if [ -d "$BB_BROWSER_DIR" ]; then
+  echo "Packing local bb-browser..."
+  (cd "$BB_BROWSER_DIR" && npm pack --pack-destination "$SCRIPT_DIR") 2>/dev/null
+  # npm pack names it bb-browser-X.X.X.tgz, rename to fixed name
+  mv "$SCRIPT_DIR"/bb-browser-*.tgz "$SCRIPT_DIR/bb-browser.tgz" 2>/dev/null || true
+else
+  echo "Warning: local bb-browser not found at $BB_BROWSER_DIR, skipping pack"
+fi
+
 ${CONTAINER_RUNTIME} build -t "${IMAGE_NAME}:${TAG}" .
+
+# Cleanup
+rm -f "$SCRIPT_DIR/bb-browser.tgz"
 
 echo ""
 echo "Build complete!"

@@ -43,6 +43,7 @@ import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
 import { startSchedulerLoop } from './task-scheduler.js';
+import { startBbBrowserDaemon, stopBbBrowserDaemon } from './bb-browser.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 
@@ -453,6 +454,7 @@ function ensureContainerSystemRunning(): void {
 
 async function main(): Promise<void> {
   ensureContainerSystemRunning();
+  startBbBrowserDaemon();
   initDatabase();
   logger.info('Database initialized');
   loadState();
@@ -462,6 +464,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, 'Shutdown signal received');
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
+    stopBbBrowserDaemon();
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
