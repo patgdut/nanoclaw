@@ -20,6 +20,7 @@ Single Node.js process that connects to WhatsApp, routes messages to Claude Agen
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `container/skills/bb-browser/` | Browser automation tool (available to all agents via Bash) |
+| `container/skills/qimairank/` | 七麦排名上升榜数据提取 (uses bb-browser) |
 
 ## Skills
 

@@ -16,6 +16,10 @@ ENV BB_BROWSER_HOST=http://host.docker.internal:19824
 COPY bb-browser.tgz /tmp/bb-browser.tgz
 RUN npm install -g /tmp/bb-browser.tgz @anthropic-ai/claude-code && rm /tmp/bb-browser.tgz
 
+# Install qimairank script
+COPY skills/qimairank/qimairank.sh /usr/local/bin/qimairank
+RUN chmod +x /usr/local/bin/qimairank
+
 # Create app directory
 WORKDIR /app
 

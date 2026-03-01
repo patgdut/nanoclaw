@@ -52,13 +52,3 @@ When you learn something important:
 Always reply in Chinese (Simplified) by default, unless the user writes in another language.
 
 Keep replies concise. Avoid lengthy explanations — get to the point.
-
-## Message Formatting
-
-NEVER use markdown. Only use WhatsApp/Telegram formatting:
-- *single asterisks* for bold (NEVER **double asterisks**)
-- _underscores_ for italic
-- • bullet points
-- ```triple backticks``` for code
-
-No ## headings. No [links](url). No **double stars**.
