@@ -50,9 +50,48 @@ interface SessionsIndex {
 
 interface SDKUserMessage {
   type: 'user';
-  message: { role: 'user'; content: string };
+  message: { role: 'user'; content: string | unknown[] };
   parent_tool_use_id: null;
   session_id: string;
+}
+
+// Regex to find image paths embedded by the Telegram channel
+const IMAGE_PATH_RE = /\[Image saved to ([^\]]+)\]/g;
+
+/**
+ * Build a multimodal content array if the prompt contains image paths.
+ * Falls back to plain string if no images found or files can't be read.
+ */
+function buildMessageContent(text: string): string | unknown[] {
+  const parts: unknown[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  IMAGE_PATH_RE.lastIndex = 0;
+
+  while ((match = IMAGE_PATH_RE.exec(text)) !== null) {
+    const before = text.slice(lastIndex, match.index).trim();
+    if (before) {
+      parts.push({ type: 'text', text: before });
+    }
+    const imgPath = match[1];
+    try {
+      const data = fs.readFileSync(imgPath);
+      const base64 = data.toString('base64');
+      const ext = path.extname(imgPath).slice(1).toLowerCase();
+      const mediaType = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      parts.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+    } catch (err) {
+      log(`Failed to read image ${imgPath}: ${err instanceof Error ? err.message : String(err)}`);
+      parts.push({ type: 'text', text: match[0] });
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (parts.length === 0) return text;
+
+  const remaining = text.slice(lastIndex).trim();
+  if (remaining) parts.push({ type: 'text', text: remaining });
+  return parts;
 }
 
 const IPC_INPUT_DIR = '/workspace/ipc/input';
@@ -69,9 +108,11 @@ class MessageStream {
   private done = false;
 
   push(text: string): void {
+    const content = buildMessageContent(text);
+    log(`MessageStream.push: content type=${typeof content}, isArray=${Array.isArray(content)}, blocks=${Array.isArray(content) ? content.length : 'n/a'}`);
     this.queue.push({
       type: 'user',
-      message: { role: 'user', content: text },
+      message: { role: 'user', content: content as any },
       parent_tool_use_id: null,
       session_id: '',
     });

@@ -1,7 +1,11 @@
+import fs from 'fs';
+import path from 'path';
+
 import { Bot } from 'grammy';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { getTasksForGroup } from '../db.js';
+import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
 import {
   Channel,
@@ -232,8 +236,38 @@ export class TelegramChannel implements Channel {
       );
     });
 
+    // Download a Telegram file and save it to the group's media directory.
+    // Returns the container-side path (e.g. /workspace/group/media/filename).
+    const downloadMedia = async (
+      fileId: string,
+      filename: string,
+      groupFolder: string,
+    ): Promise<string | null> => {
+      try {
+        const file = await this.bot!.api.getFile(fileId);
+        if (!file.file_path) return null;
+        const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const groupDir = resolveGroupFolderPath(groupFolder);
+        const mediaDir = path.join(groupDir, 'media');
+        fs.mkdirSync(mediaDir, { recursive: true });
+        fs.writeFileSync(path.join(mediaDir, filename), buffer);
+        return `/workspace/group/media/${filename}`;
+      } catch (err) {
+        logger.warn({ fileId, err }, 'Failed to download Telegram media');
+        return null;
+      }
+    };
+
     // Handle non-text messages with placeholders so the agent knows something was sent
-    const storeNonText = (ctx: any, placeholder: string) => {
+    const storeNonText = async (
+      ctx: any,
+      placeholder: string,
+      fileId?: string,
+      ext?: string,
+    ) => {
       const chatJid = `tg:${ctx.chat.id}`;
       const group = this.opts.registeredGroups()[chatJid];
       if (!group) return;
@@ -245,6 +279,19 @@ export class TelegramChannel implements Channel {
         ctx.from?.id?.toString() ||
         'Unknown';
       const caption = ctx.message.caption ? ` ${ctx.message.caption}` : '';
+
+      let content = `${placeholder}${caption}`;
+      if (fileId && ext) {
+        const filename = `${Date.now()}.${ext}`;
+        const containerPath = await downloadMedia(
+          fileId,
+          filename,
+          group.folder,
+        );
+        if (containerPath) {
+          content = `[Image saved to ${containerPath}]${caption ? ` ${caption}` : ''}`;
+        }
+      }
 
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -260,13 +307,17 @@ export class TelegramChannel implements Channel {
         chat_jid: chatJid,
         sender: ctx.from?.id?.toString() || '',
         sender_name: senderName,
-        content: `${placeholder}${caption}`,
+        content,
         timestamp,
         is_from_me: false,
       });
     };
 
-    this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
+    this.bot.on('message:photo', (ctx) => {
+      const photos = ctx.message.photo;
+      const largest = photos[photos.length - 1];
+      return storeNonText(ctx, '[Photo]', largest.file_id, 'jpg');
+    });
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
     this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
