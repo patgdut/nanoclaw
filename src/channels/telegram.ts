@@ -23,7 +23,7 @@ import {
  *  3. Apply bold / italic / strikethrough / link patterns.
  *  4. Restore code blocks.
  */
-function markdownToHtml(md: string): string {
+export function markdownToHtml(md: string): string {
   const blocks: string[] = [];
   const inlines: string[] = [];
 
