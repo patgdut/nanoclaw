@@ -207,8 +207,8 @@ function readSecrets(): Record<string, string> {
   return readEnvFile([
     'CLAUDE_CODE_OAUTH_TOKEN',
     'ANTHROPIC_API_KEY',
-    'ANTHROPIC_AUTH_TOKEN',
     'ANTHROPIC_BASE_URL',
+    'ANTHROPIC_AUTH_TOKEN',
   ]);
 }
 
