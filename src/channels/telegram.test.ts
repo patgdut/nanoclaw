@@ -63,7 +63,7 @@ vi.mock('grammy', () => ({
   },
 }));
 
-import { TelegramChannel, TelegramChannelOpts } from './telegram.js';
+import { TelegramChannel, TelegramChannelOpts, markdownToHtml } from './telegram.js';
 
 // --- Test helpers ---
 
@@ -541,7 +541,9 @@ describe('TelegramChannel', () => {
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
-      const ctx = createMediaCtx({});
+      const ctx = createMediaCtx({
+        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+      });
       await triggerMediaMessage('message:photo', ctx);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
@@ -555,7 +557,10 @@ describe('TelegramChannel', () => {
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
-      const ctx = createMediaCtx({ caption: 'Look at this' });
+      const ctx = createMediaCtx({
+        caption: 'Look at this',
+        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+      });
       await triggerMediaMessage('message:photo', ctx);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
@@ -685,7 +690,10 @@ describe('TelegramChannel', () => {
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
-      const ctx = createMediaCtx({ chatId: 999999 });
+      const ctx = createMediaCtx({
+        chatId: 999999,
+        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+      });
       await triggerMediaMessage('message:photo', ctx);
 
       expect(opts.onMessage).not.toHaveBeenCalled();
@@ -705,6 +713,7 @@ describe('TelegramChannel', () => {
       expect(currentBot().api.sendMessage).toHaveBeenCalledWith(
         '100200300',
         'Hello',
+        { parse_mode: 'HTML' },
       );
     });
 
@@ -718,6 +727,7 @@ describe('TelegramChannel', () => {
       expect(currentBot().api.sendMessage).toHaveBeenCalledWith(
         '-1001234567890',
         'Group message',
+        { parse_mode: 'HTML' },
       );
     });
 
@@ -734,11 +744,13 @@ describe('TelegramChannel', () => {
         1,
         '100200300',
         'x'.repeat(4096),
+        { parse_mode: 'HTML' },
       );
       expect(currentBot().api.sendMessage).toHaveBeenNthCalledWith(
         2,
         '100200300',
         'x'.repeat(904),
+        { parse_mode: 'HTML' },
       );
     });
 
@@ -913,6 +925,146 @@ describe('TelegramChannel', () => {
       await handler(ctx);
 
       expect(ctx.reply).toHaveBeenCalledWith('Andy is online.');
+    });
+  });
+
+  // --- markdownToHtml ---
+
+  describe('markdownToHtml', () => {
+    it('leaves plain text unchanged', () => {
+      expect(markdownToHtml('hello world')).toBe('hello world');
+    });
+
+    it('escapes HTML special characters', () => {
+      expect(markdownToHtml('<script>alert("xss")</script>')).toBe(
+        '&lt;script&gt;alert("xss")&lt;/script&gt;',
+      );
+    });
+
+    it('converts **bold**', () => {
+      expect(markdownToHtml('**hello**')).toBe('<b>hello</b>');
+    });
+
+    it('converts *italic*', () => {
+      expect(markdownToHtml('*hello*')).toBe('<i>hello</i>');
+    });
+
+    it('converts _italic_', () => {
+      expect(markdownToHtml('_hello_')).toBe('<i>hello</i>');
+    });
+
+    it('converts __bold__', () => {
+      expect(markdownToHtml('__hello__')).toBe('<b>hello</b>');
+    });
+
+    it('converts ***bold italic***', () => {
+      expect(markdownToHtml('***hello***')).toBe('<b><i>hello</i></b>');
+    });
+
+    it('converts ___bold italic___', () => {
+      expect(markdownToHtml('___hello___')).toBe('<b><i>hello</i></b>');
+    });
+
+    it('converts ~~strikethrough~~', () => {
+      expect(markdownToHtml('~~hello~~')).toBe('<s>hello</s>');
+    });
+
+    it('converts [link](url)', () => {
+      expect(markdownToHtml('[click](https://example.com)')).toBe(
+        '<a href="https://example.com">click</a>',
+      );
+    });
+
+    it('converts inline code', () => {
+      expect(markdownToHtml('use `npm install`')).toBe(
+        'use <code>npm install</code>',
+      );
+    });
+
+    it('converts fenced code block', () => {
+      expect(markdownToHtml('```\nconst x = 1;\n```')).toBe(
+        '<pre>const x = 1;</pre>',
+      );
+    });
+
+    it('converts fenced code block with language hint', () => {
+      expect(markdownToHtml('```ts\nconst x = 1;\n```')).toBe(
+        '<pre>const x = 1;</pre>',
+      );
+    });
+
+    it('does not process markdown inside code blocks', () => {
+      expect(markdownToHtml('```\n**not bold**\n```')).toBe(
+        '<pre>**not bold**</pre>',
+      );
+    });
+
+    it('does not process markdown inside inline code', () => {
+      expect(markdownToHtml('`**not bold**`')).toBe(
+        '<code>**not bold**</code>',
+      );
+    });
+
+    it('converts # heading to bold', () => {
+      expect(markdownToHtml('# Hello')).toBe('<b>Hello</b>');
+    });
+
+    it('converts ## subheading to bold', () => {
+      expect(markdownToHtml('## Overview')).toBe('<b>Overview</b>');
+    });
+
+    it('converts ###### deepest heading to bold', () => {
+      expect(markdownToHtml('###### Details')).toBe('<b>Details</b>');
+    });
+
+    it('removes horizontal rules (---)', () => {
+      expect(markdownToHtml('before\n---\nafter')).toBe('before\n\nafter');
+    });
+
+    it('removes horizontal rules (***)', () => {
+      expect(markdownToHtml('before\n***\nafter')).toBe('before\n\nafter');
+    });
+
+    it('handles mixed formatting in a paragraph', () => {
+      const input = '**bold** and *italic* and `code`';
+      expect(markdownToHtml(input)).toBe(
+        '<b>bold</b> and <i>italic</i> and <code>code</code>',
+      );
+    });
+
+    it('escapes HTML inside code spans before restoring', () => {
+      expect(markdownToHtml('`<b>tag</b>`')).toBe(
+        '<code>&lt;b&gt;tag&lt;/b&gt;</code>',
+      );
+    });
+  });
+
+  // --- splitHtmlIntoChunks via sendMessage ---
+
+  describe('sendMessage line-boundary chunking', () => {
+    it('splits at newline boundary when text exceeds 4096 chars', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      // Build a text with a newline at position 100, total length > 4096
+      const part1 = 'a'.repeat(100) + '\n';
+      const part2 = 'b'.repeat(4000);
+      await channel.sendMessage('tg:100200300', part1 + part2);
+
+      expect(currentBot().api.sendMessage).toHaveBeenCalledTimes(2);
+      expect(currentBot().api.sendMessage).toHaveBeenNthCalledWith(
+        1,
+        '100200300',
+        part1,
+        { parse_mode: 'HTML' },
+      );
+      expect(currentBot().api.sendMessage).toHaveBeenNthCalledWith(
+        2,
+        '100200300',
+        part2,
+        { parse_mode: 'HTML' },
+      );
     });
   });
 
