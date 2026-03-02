@@ -38,94 +38,101 @@ URL="https://www.qimai.cn/rank/float/float/up/genre/${GENRE}/device/${DEVICE}/ty
 # Open page
 bb-browser open "$URL" > /dev/null 2>&1
 
-# Wait for table to render
-bb-browser wait 3000 > /dev/null 2>&1
+# Ensure tab is closed on exit (even on error)
+trap 'bb-browser close > /dev/null 2>&1 || true' EXIT
 
-# Extract data using pre-recorded DOM selectors
+# Extract data — polls via Promise until table rows appear (up to 8s), no fixed wait
 RESULT=$(bb-browser eval "
-(function() {
-  var rows = document.querySelectorAll('.ivu-table-row');
+new Promise(function(resolve, reject) {
+  var maxWait = 8000;
+  var interval = 200;
+  var elapsed = 0;
   var top = ${TOP};
   var fmt = '${FORMAT}';
-  var apps = [];
-  for (var i = 0; i < Math.min(top, rows.length); i++) {
-    var cells = rows[i].querySelectorAll('td');
-    if (cells.length < 5) continue;
-    var appLink = cells[1] ? cells[1].querySelector('a[href*=\"/app/\"]') : null;
-    var imgEl = appLink ? appLink.querySelector('img') : null;
-    var rowText = cells[1] ? cells[1].querySelector('.row-a') : null;
-    var devText = rowText ? rowText.innerText.split('\\n').pop().trim() : '';
-    apps.push({
-      rank: cells[0] ? cells[0].innerText.trim() : '',
-      appName: (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : ''),
-      appUrl: 'https://www.qimai.cn' + (appLink ? appLink.getAttribute('href') : ''),
-      developer: devText,
-      rankChange: cells[2] && cells[2].querySelector('.change-text') ? cells[2].querySelector('.change-text').innerText.trim() : '',
-      overallRank: cells[3] && cells[3].querySelector('.big-txt') ? cells[3].querySelector('.big-txt').innerText.trim() : '',
-      overallCategory: cells[3] && cells[3].querySelector('.small-txt') ? cells[3].querySelector('.small-txt').innerText.trim() : '',
-      categoryRank: cells[4] && cells[4].querySelector('.big-txt') ? cells[4].querySelector('.big-txt').innerText.trim() : '',
-      categoryName: cells[4] && cells[4].querySelector('.small-txt') ? cells[4].querySelector('.small-txt').innerText.trim() : ''
-    });
-  }
-  if (fmt === 'json') {
-    return JSON.stringify(apps, null, 2);
-  }
-  // Text table format — ready to send directly to user
-  var lines = [];
-  lines.push('iOS 24h 排名上升榜 (US Free)');
-  lines.push('');
-  for (var j = 0; j < apps.length; j++) {
-    var a = apps[j];
-    lines.push(a.rank + '. ' + a.appName + ' | +' + a.rankChange + ' | 总榜#' + a.overallRank + ' | ' + a.categoryName + '#' + a.categoryRank);
-    lines.push('   ' + a.appUrl);
-  }
+  var country = '${COUNTRY}'.toUpperCase();
+  var brand = '${BRAND}';
 
-  // --- 榜单小结 ---
-  lines.push('');
-  lines.push('--- 榜单小结 ---');
-
-  // 1. 冲榜最猛：上升幅度最大的 top 3
-  var sorted = apps.slice().sort(function(a, b) { return parseInt(b.rankChange) - parseInt(a.rankChange); });
-  var topMovers = sorted.slice(0, 3);
-  lines.push('');
-  lines.push('冲榜最猛:');
-  for (var m = 0; m < topMovers.length; m++) {
-    lines.push('  ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
-  }
-
-  // 2. 头部热门：总榜 top 20 且还在上升的
-  var hotApps = apps.filter(function(a) { return parseInt(a.overallRank) <= 20; });
-  if (hotApps.length > 0) {
+  function extractData() {
+    var rows = document.querySelectorAll('.ivu-table-row');
+    var apps = [];
+    for (var i = 0; i < Math.min(top, rows.length); i++) {
+      var cells = rows[i].querySelectorAll('td');
+      if (cells.length < 5) continue;
+      var appLink = cells[1] ? cells[1].querySelector('a[href*=\"/app/\"]') : null;
+      var imgEl = appLink ? appLink.querySelector('img') : null;
+      var rowText = cells[1] ? cells[1].querySelector('.row-a') : null;
+      var devText = rowText ? rowText.innerText.split('\\n').pop().trim() : '';
+      apps.push({
+        rank: cells[0] ? cells[0].innerText.trim() : '',
+        appName: (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : ''),
+        appUrl: 'https://www.qimai.cn' + (appLink ? appLink.getAttribute('href') : ''),
+        developer: devText,
+        rankChange: cells[2] && cells[2].querySelector('.change-text') ? cells[2].querySelector('.change-text').innerText.trim() : '',
+        overallRank: cells[3] && cells[3].querySelector('.big-txt') ? cells[3].querySelector('.big-txt').innerText.trim() : '',
+        overallCategory: cells[3] && cells[3].querySelector('.small-txt') ? cells[3].querySelector('.small-txt').innerText.trim() : '',
+        categoryRank: cells[4] && cells[4].querySelector('.big-txt') ? cells[4].querySelector('.big-txt').innerText.trim() : '',
+        categoryName: cells[4] && cells[4].querySelector('.small-txt') ? cells[4].querySelector('.small-txt').innerText.trim() : ''
+      });
+    }
+    if (fmt === 'json') {
+      return JSON.stringify(apps, null, 2);
+    }
+    var lines = [];
+    lines.push('iOS 24h 排名上升榜 (' + country + ' ' + brand + ')');
     lines.push('');
-    lines.push('头部热门 (总榜前20还在涨):');
-    for (var h = 0; h < hotApps.length; h++) {
-      lines.push('  ' + hotApps[h].appName + ' (总榜#' + hotApps[h].overallRank + ', +' + hotApps[h].rankChange + ')');
+    for (var j = 0; j < apps.length; j++) {
+      var a = apps[j];
+      lines.push(a.rank + '. ' + a.appName + ' | +' + a.rankChange + ' | 总榜#' + a.overallRank + ' | ' + a.categoryName + '#' + a.categoryRank);
+      lines.push('   ' + a.appUrl);
+    }
+    lines.push('');
+    lines.push('--- 榜单小结 ---');
+    var sorted = apps.slice().sort(function(a, b) { return parseInt(b.rankChange) - parseInt(a.rankChange); });
+    var topMovers = sorted.slice(0, 3);
+    lines.push('');
+    lines.push('冲榜最猛:');
+    for (var m = 0; m < topMovers.length; m++) {
+      lines.push('  ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
+    }
+    var hotApps = apps.filter(function(a) { return parseInt(a.overallRank) <= 20; });
+    if (hotApps.length > 0) {
+      lines.push('');
+      lines.push('头部热门 (总榜前20还在涨):');
+      for (var h = 0; h < hotApps.length; h++) {
+        lines.push('  ' + hotApps[h].appName + ' (总榜#' + hotApps[h].overallRank + ', +' + hotApps[h].rankChange + ')');
+      }
+    }
+    var catCount = {};
+    for (var c = 0; c < apps.length; c++) {
+      var cat = apps[c].categoryName.replace(/\(.*\)/, '').trim();
+      catCount[cat] = (catCount[cat] || 0) + 1;
+    }
+    var catPairs = [];
+    for (var k in catCount) { catPairs.push([k, catCount[k]]); }
+    catPairs.sort(function(a, b) { return b[1] - a[1]; });
+    var hotCats = catPairs.filter(function(p) { return p[1] >= 2; });
+    if (hotCats.length > 0) {
+      lines.push('');
+      lines.push('热门分类:');
+      for (var t = 0; t < hotCats.length; t++) {
+        lines.push('  ' + hotCats[t][0] + ' (' + hotCats[t][1] + '款)');
+      }
+    }
+    return lines.join('\\n');
+  }
+
+  function check() {
+    var rows = document.querySelectorAll('.ivu-table-row');
+    if (rows.length > 0) {
+      resolve(extractData());
+    } else if (elapsed >= maxWait) {
+      reject(new Error('页面加载超时，未找到排名数据（等待 ' + maxWait + 'ms）'));
+    } else {
+      elapsed += interval;
+      setTimeout(check, interval);
     }
   }
-
-  // 3. 分类分布
-  var catCount = {};
-  for (var c = 0; c < apps.length; c++) {
-    var cat = apps[c].categoryName.replace(/\(.*\)/, '').trim();
-    catCount[cat] = (catCount[cat] || 0) + 1;
-  }
-  var catPairs = [];
-  for (var k in catCount) { catPairs.push([k, catCount[k]]); }
-  catPairs.sort(function(a, b) { return b[1] - a[1]; });
-  var hotCats = catPairs.filter(function(p) { return p[1] >= 2; });
-  if (hotCats.length > 0) {
-    lines.push('');
-    lines.push('热门分类:');
-    for (var t = 0; t < hotCats.length; t++) {
-      lines.push('  ' + hotCats[t][0] + ' (' + hotCats[t][1] + '款)');
-    }
-  }
-
-  return lines.join('\\n');
-})()
-")
-
-# Close tab
-bb-browser close > /dev/null 2>&1
+  check();
+})")
 
 echo "$RESULT"
