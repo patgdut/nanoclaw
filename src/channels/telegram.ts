@@ -7,6 +7,7 @@ import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { getTasksForGroup } from '../db.js';
 import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
+import { runScript } from '../script-runner.js';
 import {
   Channel,
   OnChatMetadata,
@@ -113,6 +114,7 @@ export class TelegramChannel implements Channel {
           `/help - Show this help\n` +
           `/tasks - List scheduled tasks\n` +
           `/reset - Reset conversation memory\n` +
+          `/qimai - Get iOS App Store ranking data\n` +
           `/ping - Check bot status\n` +
           `/chatid - Get this chat's registration ID`,
       );
@@ -155,6 +157,59 @@ export class TelegramChannel implements Channel {
       ctx.reply(
         'Conversation memory cleared. Next message starts a fresh session.',
       );
+    });
+
+    this.bot.command('qimai', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('This chat is not registered.');
+        return;
+      }
+
+      // Parse command arguments
+      const text = ctx.message?.text || '';
+      const parts = text.split(/\s+/).slice(1); // Remove /qimai
+      const args: string[] = [];
+
+      // Parse flags; apply defaults if not provided by user
+      const parsed: Record<string, string> = {};
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (part.startsWith('--') && i + 1 < parts.length) {
+          parsed[part] = parts[i + 1];
+          i++; // Skip next part as it's the value
+        }
+      }
+      if (!parsed['--top']) parsed['--top'] = '50';
+      if (!parsed['--country']) parsed['--country'] = 'us';
+      for (const [key, val] of Object.entries(parsed)) {
+        args.push(key, val);
+      }
+
+      await ctx.reply('正在获取七麦排名数据...');
+
+      try {
+        const result = await runScript({
+          script: 'qimairank',
+          args,
+          timeout: 60000, // 60s timeout for web scraping
+        });
+
+        if (result.success) {
+          // Split output into ≤4096-char chunks (Telegram limit)
+          const text = result.output || '无数据';
+          const MAX = 4096;
+          for (let i = 0; i < text.length; i += MAX) {
+            await ctx.reply(text.slice(i, i + MAX));
+          }
+        } else {
+          await ctx.reply(`执行失败: ${result.error || '未知错误'}`);
+        }
+      } catch (err) {
+        logger.error({ chatJid, err }, 'qimai command failed');
+        await ctx.reply(`执行出错: ${err instanceof Error ? err.message : String(err)}`);
+      }
     });
 
     this.bot.on('message:text', async (ctx) => {
@@ -340,7 +395,7 @@ export class TelegramChannel implements Channel {
     // Start polling — returns a Promise that resolves when started
     return new Promise<void>((resolve) => {
       this.bot!.start({
-        onStart: (botInfo) => {
+        onStart: async (botInfo) => {
           logger.info(
             { username: botInfo.username, id: botInfo.id },
             'Telegram bot connected',
@@ -349,6 +404,22 @@ export class TelegramChannel implements Channel {
           console.log(
             `  Send /chatid to the bot to get a chat's registration ID\n`,
           );
+
+          // Register commands so they appear in the Telegram "/" menu
+          try {
+            await this.bot!.api.setMyCommands([
+              { command: 'qimai', description: '获取 iOS 24h 排名上升榜' },
+              { command: 'tasks', description: 'List scheduled tasks' },
+              { command: 'reset', description: 'Reset conversation memory' },
+              { command: 'ping', description: 'Check bot status' },
+              { command: 'help', description: 'Show help' },
+              { command: 'chatid', description: 'Get this chat\'s registration ID' },
+            ]);
+            logger.info('Telegram bot commands registered');
+          } catch (err) {
+            logger.warn({ err }, 'Failed to register Telegram bot commands');
+          }
+
           resolve();
         },
       });

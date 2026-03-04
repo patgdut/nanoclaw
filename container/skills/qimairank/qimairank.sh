@@ -65,7 +65,7 @@ new Promise(function(resolve, reject) {
       apps.push({
         rank: cells[0] ? cells[0].innerText.trim() : '',
         appName: (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : ''),
-        appUrl: 'https://www.qimai.cn' + (appLink ? appLink.getAttribute('href') : ''),
+        appUrl: (function() { var m = appLink && appLink.getAttribute('href').match(/appid\/(\d+)/); return m ? 'https://apps.apple.com/' + country.toLowerCase() + '/app/id' + m[1] : ''; })(),
         developer: devText,
         rankChange: cells[2] && cells[2].querySelector('.change-text') ? cells[2].querySelector('.change-text').innerText.trim() : '',
         overallRank: cells[3] && cells[3].querySelector('.big-txt') ? cells[3].querySelector('.big-txt').innerText.trim() : '',
@@ -78,21 +78,25 @@ new Promise(function(resolve, reject) {
       return JSON.stringify(apps, null, 2);
     }
     var lines = [];
-    lines.push('iOS 24h 排名上升榜 (' + country + ' ' + brand + ')');
+
+    // --- 完整榜单 ---
+    lines.push('iOS 24h 排名上升榜 (' + country.toUpperCase() + ' ' + brand + ')');
     lines.push('');
     for (var j = 0; j < apps.length; j++) {
       var a = apps[j];
       lines.push(a.rank + '. ' + a.appName + ' | +' + a.rankChange + ' | 总榜#' + a.overallRank + ' | ' + a.categoryName + '#' + a.categoryRank);
-      lines.push('   ' + a.appUrl);
     }
+
+    // --- 榜单小结（底部）---
+    var sorted = apps.slice().sort(function(a, b) { return parseInt(b.rankChange) - parseInt(a.rankChange); });
+    var topMovers = sorted.slice(0, 10);
     lines.push('');
     lines.push('--- 榜单小结 ---');
-    var sorted = apps.slice().sort(function(a, b) { return parseInt(b.rankChange) - parseInt(a.rankChange); });
-    var topMovers = sorted.slice(0, 3);
     lines.push('');
-    lines.push('冲榜最猛:');
+    lines.push('冲榜最猛 Top 10:');
     for (var m = 0; m < topMovers.length; m++) {
-      lines.push('  ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
+      lines.push('  ' + (m + 1) + '. ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
+      lines.push('  ' + topMovers[m].appUrl);
     }
     var hotApps = apps.filter(function(a) { return parseInt(a.overallRank) <= 20; });
     if (hotApps.length > 0) {
@@ -100,6 +104,7 @@ new Promise(function(resolve, reject) {
       lines.push('头部热门 (总榜前20还在涨):');
       for (var h = 0; h < hotApps.length; h++) {
         lines.push('  ' + hotApps[h].appName + ' (总榜#' + hotApps[h].overallRank + ', +' + hotApps[h].rankChange + ')');
+        lines.push('  ' + hotApps[h].appUrl);
       }
     }
     var catCount = {};
