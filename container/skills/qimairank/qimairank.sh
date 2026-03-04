@@ -62,9 +62,12 @@ new Promise(function(resolve, reject) {
       var imgEl = appLink ? appLink.querySelector('img') : null;
       var rowText = cells[1] ? cells[1].querySelector('.row-a') : null;
       var devText = rowText ? rowText.innerText.split('\\n').pop().trim() : '';
+      var adEl = cells[1] ? cells[1].querySelector('i.stress-icon') : null;
+      var isAd = adEl && adEl.innerText.trim() === 'AD';
+      var rawName = (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : '');
       apps.push({
         rank: cells[0] ? cells[0].innerText.trim() : '',
-        appName: (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : ''),
+        appName: (isAd ? '[AD] ' : '') + rawName,
         appUrl: (function() { var m = appLink && appLink.getAttribute('href').match(/appid\/(\d+)/); return m ? 'https://apps.apple.com/' + country.toLowerCase() + '/app/id' + m[1] : ''; })(),
         developer: devText,
         rankChange: cells[2] && cells[2].querySelector('.change-text') ? cells[2].querySelector('.change-text').innerText.trim() : '',
