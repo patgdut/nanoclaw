@@ -63,7 +63,8 @@ function launchChrome(): void {
     command = 'open -a "Google Chrome"';
   } else if (os === 'linux') {
     // Linux - try common Chrome executables
-    command = 'google-chrome || google-chrome-stable || chromium-browser || chromium';
+    command =
+      'google-chrome || google-chrome-stable || chromium-browser || chromium';
   } else if (os === 'win32') {
     // Windows
     command = 'start chrome';

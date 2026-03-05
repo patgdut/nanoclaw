@@ -63,7 +63,11 @@ vi.mock('grammy', () => ({
   },
 }));
 
-import { TelegramChannel, TelegramChannelOpts, markdownToHtml } from './telegram.js';
+import {
+  TelegramChannel,
+  TelegramChannelOpts,
+  markdownToHtml,
+} from './telegram.js';
 
 // --- Test helpers ---
 
@@ -542,7 +546,16 @@ describe('TelegramChannel', () => {
       await channel.connect();
 
       const ctx = createMediaCtx({
-        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+        extra: {
+          photo: [
+            {
+              file_id: 'photo_id',
+              file_unique_id: 'uid',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
       });
       await triggerMediaMessage('message:photo', ctx);
 
@@ -559,7 +572,16 @@ describe('TelegramChannel', () => {
 
       const ctx = createMediaCtx({
         caption: 'Look at this',
-        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+        extra: {
+          photo: [
+            {
+              file_id: 'photo_id',
+              file_unique_id: 'uid',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
       });
       await triggerMediaMessage('message:photo', ctx);
 
@@ -692,7 +714,16 @@ describe('TelegramChannel', () => {
 
       const ctx = createMediaCtx({
         chatId: 999999,
-        extra: { photo: [{ file_id: 'photo_id', file_unique_id: 'uid', width: 640, height: 480 }] },
+        extra: {
+          photo: [
+            {
+              file_id: 'photo_id',
+              file_unique_id: 'uid',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
       });
       await triggerMediaMessage('message:photo', ctx);
 

@@ -3,7 +3,11 @@ import path from 'path';
 
 import { Bot } from 'grammy';
 
-import { ASSISTANT_NAME, TELEGRAM_BOT_TOKEN, TRIGGER_PATTERN } from '../config.js';
+import {
+  ASSISTANT_NAME,
+  TELEGRAM_BOT_TOKEN,
+  TRIGGER_PATTERN,
+} from '../config.js';
 import { getTasksForGroup } from '../db.js';
 import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
@@ -209,7 +213,9 @@ export class TelegramChannel implements Channel {
         }
       } catch (err) {
         logger.error({ chatJid, err }, 'qimai command failed');
-        await ctx.reply(`执行出错: ${err instanceof Error ? err.message : String(err)}`);
+        await ctx.reply(
+          `执行出错: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     });
 
@@ -414,7 +420,10 @@ export class TelegramChannel implements Channel {
               { command: 'reset', description: 'Reset conversation memory' },
               { command: 'ping', description: 'Check bot status' },
               { command: 'help', description: 'Show help' },
-              { command: 'chatid', description: 'Get this chat\'s registration ID' },
+              {
+                command: 'chatid',
+                description: "Get this chat's registration ID",
+              },
             ]);
             logger.info('Telegram bot commands registered');
           } catch (err) {
