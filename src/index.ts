@@ -52,6 +52,7 @@ import {
 } from './sender-allowlist.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { startBbBrowserDaemon, stopBbBrowserDaemon } from './bb-browser.js';
+import { getHealthMonitor } from './health-monitor.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 
@@ -187,6 +188,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     { group: group.name, messageCount: missedMessages.length },
     'Processing messages',
   );
+
+  // Notify health monitor that we're processing messages
+  const healthMonitor = getHealthMonitor();
+  healthMonitor.recordMessageProcessing(group.folder);
 
   // Track idle timer for closing stdin when agent is idle
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -473,9 +478,18 @@ async function main(): Promise<void> {
   logger.info('Database initialized');
   loadState();
 
+  // Start health monitor
+  const healthMonitor = getHealthMonitor({
+    messageStuckThreshold: 5 * 60 * 1000, // 5分钟
+    checkInterval: 60 * 1000, // 每分钟检查
+    containerIdleThreshold: 35 * 60 * 1000, // 35分钟
+  });
+  healthMonitor.start();
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    healthMonitor.stop();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
     stopBbBrowserDaemon();
