@@ -174,10 +174,7 @@ export class HealthMonitor {
       }
     } catch (err) {
       // Docker 命令可能失败（比如没有运行的容器），这是正常的
-      if (
-        err instanceof Error &&
-        !err.message.includes('No such container')
-      ) {
+      if (err instanceof Error && !err.message.includes('No such container')) {
         logger.debug({ err }, 'Failed to check idle containers');
       }
     }
@@ -196,7 +193,10 @@ export class HealthMonitor {
       // 更新最后处理时间，避免重复恢复
       this.lastProcessedTime.set(groupFolder, Date.now());
     } catch (err) {
-      logger.error({ err, group: groupFolder }, 'Failed to recover stuck messages');
+      logger.error(
+        { err, group: groupFolder },
+        'Failed to recover stuck messages',
+      );
     }
   }
 
@@ -206,7 +206,10 @@ export class HealthMonitor {
       this.containerStartTimes.delete(containerName);
       logger.info({ container: containerName }, 'Stopped idle container');
     } catch (err) {
-      logger.error({ err, container: containerName }, 'Failed to stop idle container');
+      logger.error(
+        { err, container: containerName },
+        'Failed to stop idle container',
+      );
     }
   }
 }
