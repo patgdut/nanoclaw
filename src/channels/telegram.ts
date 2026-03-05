@@ -3,7 +3,7 @@ import path from 'path';
 
 import { Bot } from 'grammy';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import { ASSISTANT_NAME, TELEGRAM_BOT_TOKEN, TRIGGER_PATTERN } from '../config.js';
 import { getTasksForGroup } from '../db.js';
 import { resolveGroupFolderPath } from '../group-folder.js';
 import { logger } from '../logger.js';
@@ -14,6 +14,7 @@ import {
   OnInboundMessage,
   RegisteredGroup,
 } from '../types.js';
+import { registerChannel } from './registry.js';
 
 /**
  * Convert Claude's Markdown output to Telegram-safe HTML.
@@ -498,3 +499,19 @@ export class TelegramChannel implements Channel {
     }
   }
 }
+
+// Self-register the Telegram channel
+registerChannel('telegram', (opts) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    logger.debug('Telegram bot token not configured, skipping channel');
+    return null;
+  }
+
+  logger.info('Registering Telegram channel');
+  return new TelegramChannel(TELEGRAM_BOT_TOKEN, {
+    onMessage: opts.onMessage,
+    onChatMetadata: opts.onChatMetadata,
+    registeredGroups: opts.registeredGroups,
+    clearSession: () => {}, // Telegram doesn't need session clearing
+  });
+});
