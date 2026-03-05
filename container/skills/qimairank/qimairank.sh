@@ -64,7 +64,7 @@ new Promise(function(resolve, reject) {
       var devText = rowText ? rowText.innerText.split('\\n').pop().trim() : '';
       var adEl = cells[1] ? cells[1].querySelector('i.stress-icon') : null;
       var isAd = adEl && adEl.innerText.trim() === 'AD';
-      var rawName = (imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : '');
+      var rawName = ((imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : '')).replace(/\*/g, '');
       apps.push({
         rank: cells[0] ? cells[0].innerText.trim() : '',
         appName: (isAd ? '[AD] ' : '') + rawName,
