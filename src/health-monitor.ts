@@ -1,18 +1,9 @@
 import { logger } from './logger.js';
-import { getAllRegisteredGroups } from './db.js';
-import Database from 'better-sqlite3';
-import path from 'path';
-import { STORE_DIR } from './config.js';
+import { getAllRegisteredGroups, getLatestIncomingMessage } from './db.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-
-// 获取数据库实例
-function getDbInstance(): Database.Database {
-  const dbPath = path.join(STORE_DIR, 'nanoclaw.db');
-  return new Database(dbPath);
-}
 
 interface HealthCheckConfig {
   // 消息在队列中超过这个时间未处理，视为卡住（毫秒）
@@ -87,35 +78,16 @@ export class HealthMonitor {
 
   private async checkStuckMessages(): Promise<void> {
     try {
-      const db = getDbInstance();
+      const groups = getAllRegisteredGroups();
       const now = Date.now();
 
-      // 查找所有注册的群组
-      const groups = db
-        .prepare('SELECT jid, folder FROM registered_groups')
-        .all() as Array<{ jid: string; folder: string }>;
-
-      for (const group of groups) {
-        // 查找该群组最新的未处理消息
-        const latestMessage = db
-          .prepare(
-            `
-          SELECT timestamp
-          FROM messages
-          WHERE chat_jid = ?
-            AND is_from_me = 0
-          ORDER BY timestamp DESC
-          LIMIT 1
-        `,
-          )
-          .get(group.jid) as { timestamp: string } | undefined;
-
+      for (const [jid, group] of Object.entries(groups)) {
+        const latestMessage = getLatestIncomingMessage(jid);
         if (!latestMessage) continue;
 
         const messageTime = new Date(latestMessage.timestamp).getTime();
         const lastProcessed = this.lastProcessedTime.get(group.folder) || 0;
 
-        // 如果消息时间晚于最后处理时间，且超过阈值，说明消息卡住了
         if (
           messageTime > lastProcessed &&
           now - messageTime > this.config.messageStuckThreshold
@@ -132,8 +104,6 @@ export class HealthMonitor {
           await this.recoverStuckMessages(group.folder);
         }
       }
-
-      db.close();
     } catch (err) {
       logger.error({ err }, 'Failed to check stuck messages');
     }

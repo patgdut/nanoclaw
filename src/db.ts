@@ -689,3 +689,15 @@ function migrateJsonState(): void {
     }
   }
 }
+
+export function getLatestIncomingMessage(
+  chatJid: string,
+): { timestamp: string } | undefined {
+  return db
+    .prepare(
+      `SELECT timestamp FROM messages
+       WHERE chat_jid = ? AND is_from_me = 0
+       ORDER BY timestamp DESC LIMIT 1`,
+    )
+    .get(chatJid) as { timestamp: string } | undefined;
+}
