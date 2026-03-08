@@ -9,6 +9,8 @@ import { platform } from 'os';
 import { logger } from './logger.js';
 
 const DAEMON_JS = '/Users/pat/Documents/GitHub/bb-browser/dist/daemon.js';
+const EXTENSION_DIST =
+  '/Users/pat/Documents/GitHub/bb-browser/packages/extension/dist';
 const DAEMON_PORT = 19824;
 const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
 const CHROME_LAUNCH_COOLDOWN = 60000; // 1 minute
@@ -59,8 +61,10 @@ function launchChrome(): void {
   let command: string;
 
   if (os === 'darwin') {
-    // macOS
-    command = 'open -a "Google Chrome"';
+    // macOS — kill any existing Chrome instance then relaunch with extension loaded
+    const chromeBin =
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    command = `pkill -x "Google Chrome" 2>/dev/null; sleep 1; "${chromeBin}" --load-extension="${EXTENSION_DIST}" &`;
   } else if (os === 'linux') {
     // Linux - try common Chrome executables
     command =
