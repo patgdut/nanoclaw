@@ -67,7 +67,8 @@ new Promise(function(resolve, reject) {
       var rawName = ((imgEl ? imgEl.alt : '') || (appLink ? appLink.innerText.trim() : '')).replace(/\*/g, '');
       apps.push({
         rank: cells[0] ? cells[0].innerText.trim() : '',
-        appName: (isAd ? '[AD] ' : '') + rawName,
+        isAd: isAd,
+        appName: rawName,
         appUrl: (function() { var m = appLink && appLink.getAttribute('href').match(/appid\/(\d+)/); return m ? 'https://apps.apple.com/' + country.toLowerCase() + '/app/id' + m[1] : ''; })(),
         developer: devText,
         rankChange: cells[2] && cells[2].querySelector('.change-text') ? cells[2].querySelector('.change-text').innerText.trim() : '',
@@ -98,7 +99,8 @@ new Promise(function(resolve, reject) {
     lines.push('');
     lines.push('冲榜最猛 Top 10:');
     for (var m = 0; m < topMovers.length; m++) {
-      lines.push('  ' + (m + 1) + '. ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
+      var mName = topMovers[m].appName + (topMovers[m].isAd ? ' 【AD】' : '');
+      lines.push('  ' + (m + 1) + '. ' + mName + ' (+' + topMovers[m].rankChange + ')');
       lines.push('  ' + topMovers[m].appUrl);
     }
     var hotApps = apps.filter(function(a) { return parseInt(a.overallRank) <= 20; });
@@ -106,7 +108,8 @@ new Promise(function(resolve, reject) {
       lines.push('');
       lines.push('头部热门 (总榜前20还在涨):');
       for (var h = 0; h < hotApps.length; h++) {
-        lines.push('  ' + hotApps[h].appName + ' (总榜#' + hotApps[h].overallRank + ', +' + hotApps[h].rankChange + ')');
+        var hName = hotApps[h].appName + (hotApps[h].isAd ? ' 【AD】' : '');
+        lines.push('  ' + hName + ' (总榜#' + hotApps[h].overallRank + ', +' + hotApps[h].rankChange + ')');
         lines.push('  ' + hotApps[h].appUrl);
       }
     }
