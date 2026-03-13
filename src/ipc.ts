@@ -26,6 +26,17 @@ export interface IpcDeps {
 
 let ipcWatcherRunning = false;
 
+// Per-group IPC message counters for task fallback detection
+const ipcMessageCounts = new Map<string, number>();
+
+export function resetIpcMessageCount(groupFolder: string): void {
+  ipcMessageCounts.set(groupFolder, 0);
+}
+
+export function getIpcMessageCount(groupFolder: string): number {
+  return ipcMessageCounts.get(groupFolder) || 0;
+}
+
 export function startIpcWatcher(deps: IpcDeps): void {
   if (ipcWatcherRunning) {
     logger.debug('IPC watcher already running, skipping duplicate start');
@@ -81,6 +92,10 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   (targetGroup && targetGroup.folder === sourceGroup)
                 ) {
                   await deps.sendMessage(data.chatJid, data.text);
+                  ipcMessageCounts.set(
+                    sourceGroup,
+                    (ipcMessageCounts.get(sourceGroup) || 0) + 1,
+                  );
                   logger.info(
                     { chatJid: data.chatJid, sourceGroup },
                     'IPC message sent',

@@ -18,6 +18,7 @@ import {
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
+import { getIpcMessageCount, resetIpcMessageCount } from './ipc.js';
 import { logger } from './logger.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
 
@@ -148,6 +149,8 @@ async function runTask(
 
   let result: string | null = null;
   let error: string | null = null;
+  let attempt = 0;
+  const MAX_ATTEMPTS = 2;
 
   // For group context mode, use the group's current session
   const sessions = deps.getSessions();
@@ -158,64 +161,102 @@ async function runTask(
   // Tasks are single-turn — no need to wait IDLE_TIMEOUT (30 min) for the
   // query loop to time out. A short delay handles any final MCP calls.
   const TASK_CLOSE_DELAY_MS = 10000;
-  let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const scheduleClose = () => {
-    if (closeTimer) return; // already scheduled
-    closeTimer = setTimeout(() => {
-      logger.debug({ taskId: task.id }, 'Closing task container after result');
-      deps.queue.closeStdin(task.chat_jid);
-    }, TASK_CLOSE_DELAY_MS);
-  };
+  while (attempt < MAX_ATTEMPTS) {
+    attempt++;
+    result = null;
+    error = null;
 
-  try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt: task.prompt,
-        sessionId,
-        groupFolder: task.group_folder,
-        chatJid: task.chat_jid,
-        isMain,
-        isScheduledTask: true,
-        assistantName: ASSISTANT_NAME,
-      },
-      (proc, containerName) =>
-        deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
-      async (streamedOutput: ContainerOutput) => {
-        if (streamedOutput.result) {
-          result = streamedOutput.result;
-          // Forward result to user (sendMessage handles formatting)
-          await deps.sendMessage(task.chat_jid, streamedOutput.result);
-          scheduleClose();
-        }
-        if (streamedOutput.status === 'success') {
-          deps.queue.notifyIdle(task.chat_jid);
-        }
-        if (streamedOutput.status === 'error') {
-          error = streamedOutput.error || 'Unknown error';
-        }
-      },
-    );
+    // Reset IPC counter before each attempt
+    resetIpcMessageCount(task.group_folder);
 
-    if (closeTimer) clearTimeout(closeTimer);
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    if (output.status === 'error') {
-      error = output.error || 'Unknown error';
-    } else if (output.result) {
-      // Messages are sent via MCP tool (IPC), result text is just logged
-      result = output.result;
+    const scheduleClose = () => {
+      if (closeTimer) return;
+      closeTimer = setTimeout(() => {
+        logger.debug(
+          { taskId: task.id },
+          'Closing task container after result',
+        );
+        deps.queue.closeStdin(task.chat_jid);
+      }, TASK_CLOSE_DELAY_MS);
+    };
+
+    try {
+      const output = await runContainerAgent(
+        group,
+        {
+          prompt: task.prompt,
+          sessionId,
+          groupFolder: task.group_folder,
+          chatJid: task.chat_jid,
+          isMain,
+          isScheduledTask: true,
+          assistantName: ASSISTANT_NAME,
+        },
+        (proc, containerName) =>
+          deps.onProcess(
+            task.chat_jid,
+            proc,
+            containerName,
+            task.group_folder,
+          ),
+        async (streamedOutput: ContainerOutput) => {
+          if (streamedOutput.result) {
+            result = streamedOutput.result;
+            await deps.sendMessage(task.chat_jid, streamedOutput.result);
+            scheduleClose();
+          }
+          if (streamedOutput.status === 'success') {
+            deps.queue.notifyIdle(task.chat_jid);
+          }
+          if (streamedOutput.status === 'error') {
+            error = streamedOutput.error || 'Unknown error';
+          }
+        },
+      );
+
+      if (closeTimer) clearTimeout(closeTimer);
+
+      if (output.status === 'error') {
+        error = output.error || 'Unknown error';
+      } else if (output.result) {
+        result = output.result;
+      }
+    } catch (err) {
+      if (closeTimer) clearTimeout(closeTimer);
+      error = err instanceof Error ? err.message : String(err);
+      logger.error({ taskId: task.id, error }, 'Task failed');
     }
 
-    logger.info(
-      { taskId: task.id, durationMs: Date.now() - startTime },
-      'Task completed',
-    );
-  } catch (err) {
-    if (closeTimer) clearTimeout(closeTimer);
-    error = err instanceof Error ? err.message : String(err);
-    logger.error({ taskId: task.id, error }, 'Task failed');
+    // Wait for IPC watcher to process any pending message files
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Check if agent actually sent a message via IPC
+    const ipcCount = getIpcMessageCount(task.group_folder);
+    if (ipcCount > 0 || error) {
+      // Message was sent or task errored — done
+      break;
+    }
+
+    if (attempt < MAX_ATTEMPTS) {
+      logger.warn(
+        { taskId: task.id, attempt },
+        'Task completed without sending IPC message, retrying',
+      );
+    } else {
+      logger.warn(
+        { taskId: task.id, attempt },
+        'Task completed without sending IPC message after max attempts',
+      );
+    }
   }
+
+  logger.info(
+    { taskId: task.id, attempts: attempt, durationMs: Date.now() - startTime },
+    'Task completed',
+  );
 
   const durationMs = Date.now() - startTime;
 
