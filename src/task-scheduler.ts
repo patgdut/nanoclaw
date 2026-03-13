@@ -196,12 +196,7 @@ async function runTask(
           assistantName: ASSISTANT_NAME,
         },
         (proc, containerName) =>
-          deps.onProcess(
-            task.chat_jid,
-            proc,
-            containerName,
-            task.group_folder,
-          ),
+          deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
         async (streamedOutput: ContainerOutput) => {
           if (streamedOutput.result) {
             result = streamedOutput.result;
