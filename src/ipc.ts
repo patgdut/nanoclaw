@@ -107,18 +107,26 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   );
                 }
               }
-              fs.unlinkSync(filePath);
+              try {
+                fs.unlinkSync(filePath);
+              } catch {
+                // File may have been removed by another process — safe to ignore
+              }
             } catch (err) {
               logger.error(
                 { file, sourceGroup, err },
                 'Error processing IPC message',
               );
-              const errorDir = path.join(ipcBaseDir, 'errors');
-              fs.mkdirSync(errorDir, { recursive: true });
-              fs.renameSync(
-                filePath,
-                path.join(errorDir, `${sourceGroup}-${file}`),
-              );
+              try {
+                const errorDir = path.join(ipcBaseDir, 'errors');
+                fs.mkdirSync(errorDir, { recursive: true });
+                fs.renameSync(
+                  filePath,
+                  path.join(errorDir, `${sourceGroup}-${file}`),
+                );
+              } catch {
+                // File already gone — nothing to move
+              }
             }
           }
         }
@@ -141,18 +149,26 @@ export function startIpcWatcher(deps: IpcDeps): void {
               const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
               // Pass source group identity to processTaskIpc for authorization
               await processTaskIpc(data, sourceGroup, isMain, deps);
-              fs.unlinkSync(filePath);
+              try {
+                fs.unlinkSync(filePath);
+              } catch {
+                // File may have been removed by another process — safe to ignore
+              }
             } catch (err) {
               logger.error(
                 { file, sourceGroup, err },
                 'Error processing IPC task',
               );
-              const errorDir = path.join(ipcBaseDir, 'errors');
-              fs.mkdirSync(errorDir, { recursive: true });
-              fs.renameSync(
-                filePath,
-                path.join(errorDir, `${sourceGroup}-${file}`),
-              );
+              try {
+                const errorDir = path.join(ipcBaseDir, 'errors');
+                fs.mkdirSync(errorDir, { recursive: true });
+                fs.renameSync(
+                  filePath,
+                  path.join(errorDir, `${sourceGroup}-${file}`),
+                );
+              } catch {
+                // File already gone — nothing to move
+              }
             }
           }
         }

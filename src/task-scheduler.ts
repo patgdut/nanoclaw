@@ -149,8 +149,6 @@ async function runTask(
 
   let result: string | null = null;
   let error: string | null = null;
-  let attempt = 0;
-  const MAX_ATTEMPTS = 2;
 
   // For group context mode, use the group's current session
   const sessions = deps.getSessions();
@@ -162,94 +160,95 @@ async function runTask(
   // query loop to time out. A short delay handles any final MCP calls.
   const TASK_CLOSE_DELAY_MS = 10000;
 
-  while (attempt < MAX_ATTEMPTS) {
-    attempt++;
-    result = null;
-    error = null;
+  // Immediately update next_run to prevent the scheduler from
+  // re-triggering the same task while it's running.
+  // This is the ONLY place next_run is computed for this execution.
+  const nextRun = computeNextRun(task);
+  updateTask(task.id, { next_run: nextRun });
+  logger.info(
+    { taskId: task.id, nextRun },
+    'Updated next_run at task start to prevent race condition',
+  );
 
-    // Reset IPC counter before each attempt
-    resetIpcMessageCount(task.group_folder);
+  // Reset IPC counter so we can detect if agent sent a message
+  resetIpcMessageCount(task.group_folder);
 
-    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const scheduleClose = () => {
-      if (closeTimer) return;
-      closeTimer = setTimeout(() => {
-        logger.debug(
-          { taskId: task.id },
-          'Closing task container after result',
-        );
-        deps.queue.closeStdin(task.chat_jid);
-      }, TASK_CLOSE_DELAY_MS);
-    };
+  const scheduleClose = () => {
+    if (closeTimer) return;
+    closeTimer = setTimeout(() => {
+      logger.debug(
+        { taskId: task.id },
+        'Closing task container after result',
+      );
+      deps.queue.closeStdin(task.chat_jid);
+    }, TASK_CLOSE_DELAY_MS);
+  };
 
+  try {
+    const output = await runContainerAgent(
+      group,
+      {
+        prompt: task.prompt,
+        sessionId,
+        groupFolder: task.group_folder,
+        chatJid: task.chat_jid,
+        isMain,
+        isScheduledTask: true,
+        assistantName: ASSISTANT_NAME,
+      },
+      (proc, containerName) =>
+        deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
+      async (streamedOutput: ContainerOutput) => {
+        if (streamedOutput.result) {
+          result = streamedOutput.result;
+          scheduleClose();
+        }
+        if (streamedOutput.status === 'success') {
+          deps.queue.notifyIdle(task.chat_jid);
+        }
+        if (streamedOutput.status === 'error') {
+          error = streamedOutput.error || 'Unknown error';
+        }
+      },
+    );
+
+    if (closeTimer) clearTimeout(closeTimer);
+
+    if (output.status === 'error') {
+      error = output.error || 'Unknown error';
+    } else if (output.result) {
+      result = output.result;
+    }
+  } catch (err) {
+    if (closeTimer) clearTimeout(closeTimer);
+    error = err instanceof Error ? err.message : String(err);
+    logger.error({ taskId: task.id, error }, 'Task failed');
+  }
+
+  // Wait for IPC watcher to process any pending message files
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // If agent didn't send a message via IPC, send the result directly as fallback
+  const ipcCount = getIpcMessageCount(task.group_folder);
+  if (ipcCount === 0 && !error && result) {
+    logger.warn(
+      { taskId: task.id },
+      'Agent did not send IPC message, sending result directly as fallback',
+    );
     try {
-      const output = await runContainerAgent(
-        group,
-        {
-          prompt: task.prompt,
-          sessionId,
-          groupFolder: task.group_folder,
-          chatJid: task.chat_jid,
-          isMain,
-          isScheduledTask: true,
-          assistantName: ASSISTANT_NAME,
-        },
-        (proc, containerName) =>
-          deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),
-        async (streamedOutput: ContainerOutput) => {
-          if (streamedOutput.result) {
-            result = streamedOutput.result;
-            await deps.sendMessage(task.chat_jid, streamedOutput.result);
-            scheduleClose();
-          }
-          if (streamedOutput.status === 'success') {
-            deps.queue.notifyIdle(task.chat_jid);
-          }
-          if (streamedOutput.status === 'error') {
-            error = streamedOutput.error || 'Unknown error';
-          }
-        },
-      );
-
-      if (closeTimer) clearTimeout(closeTimer);
-
-      if (output.status === 'error') {
-        error = output.error || 'Unknown error';
-      } else if (output.result) {
-        result = output.result;
-      }
-    } catch (err) {
-      if (closeTimer) clearTimeout(closeTimer);
-      error = err instanceof Error ? err.message : String(err);
-      logger.error({ taskId: task.id, error }, 'Task failed');
-    }
-
-    // Wait for IPC watcher to process any pending message files
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Check if agent actually sent a message via IPC
-    const ipcCount = getIpcMessageCount(task.group_folder);
-    if (ipcCount > 0 || error) {
-      // Message was sent or task errored — done
-      break;
-    }
-
-    if (attempt < MAX_ATTEMPTS) {
-      logger.warn(
-        { taskId: task.id, attempt },
-        'Task completed without sending IPC message, retrying',
-      );
-    } else {
-      logger.warn(
-        { taskId: task.id, attempt },
-        'Task completed without sending IPC message after max attempts',
+      await deps.sendMessage(task.chat_jid, result);
+    } catch (sendErr) {
+      logger.error(
+        { taskId: task.id, err: sendErr },
+        'Failed to send fallback result',
       );
     }
   }
 
   logger.info(
-    { taskId: task.id, attempts: attempt, durationMs: Date.now() - startTime },
+    { taskId: task.id, ipcCount, durationMs: Date.now() - startTime },
     'Task completed',
   );
 
@@ -264,7 +263,9 @@ async function runTask(
     error,
   });
 
-  const nextRun = computeNextRun(task);
+  // Use the nextRun already computed at task start (line above) — do NOT
+  // recompute from the stale `task` object, which would overwrite the
+  // correct value with a potentially different one.
   const resultSummary = error
     ? `Error: ${error}`
     : result
