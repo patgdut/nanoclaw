@@ -53,6 +53,7 @@ import {
 import { startSchedulerLoop } from './task-scheduler.js';
 import { startBbBrowserDaemon, stopBbBrowserDaemon } from './bb-browser.js';
 import { getHealthMonitor } from './health-monitor.js';
+import { startNetworkMonitor } from './network-monitor.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 
@@ -485,6 +486,9 @@ async function main(): Promise<void> {
     containerIdleThreshold: 35 * 60 * 1000, // 35分钟
   });
   healthMonitor.start();
+
+  // Start network monitor
+  startNetworkMonitor();
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
