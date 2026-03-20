@@ -105,7 +105,7 @@ async function runTask(
   fs.mkdirSync(groupDir, { recursive: true });
 
   logger.info(
-    { taskId: task.id, group: task.group_folder },
+    { taskId: task.id, group: task.group_folder, promptLength: task.prompt.length, promptPreview: task.prompt.slice(0, 100) },
     'Running scheduled task',
   );
 

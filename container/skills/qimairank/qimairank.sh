@@ -35,6 +35,14 @@ done
 
 URL="https://www.qimai.cn/rank/float/float/up/genre/${GENRE}/device/${DEVICE}/type/one/brand/${BRAND}/country/${COUNTRY}"
 
+# Check if qimai.cn is accessible
+echo "检查 qimai.cn 可访问性..." >&2
+if ! curl -s --connect-timeout 5 --max-time 10 -I "https://www.qimai.cn" > /dev/null 2>&1; then
+  echo "错误: 无法访问 qimai.cn，请检查网络连接或 VPN 设置" >&2
+  exit 1
+fi
+echo "qimai.cn 可访问，继续获取数据..." >&2
+
 # Open page
 bb-browser open "$URL" > /dev/null 2>&1
 
