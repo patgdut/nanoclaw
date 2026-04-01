@@ -37,12 +37,22 @@ qimairank --brand paid      # 付费榜
 
 ### text 格式（默认，直接发给用户）
 ```
-iOS 24h 排名上升榜 (US Free)
+iOS 24h 排名上升榜 - 冲榜最猛 Top 20 (US free)
 
-1. DICK'S Sporting Goods | +138 | 总榜#11 | 购物(免费)#2
-   https://www.qimai.cn/app/rank/appid/556653197/country/us
-2. ReelShort - Stream Drama & TV | +123 | 总榜#67 | 娱乐(免费)#13
-   https://www.qimai.cn/app/rank/appid/1636235979/country/us
+1. DICK'S Sporting Goods (+138)
+   https://apps.apple.com/us/app/id556653197
+2. ReelShort - Stream Drama & TV (+123)
+   https://apps.apple.com/us/app/id1636235979
+
+--- 榜单总结 ---
+
+头部热门 (总榜前20还在涨):
+  DICK'S Sporting Goods (总榜#11, +138)
+  https://apps.apple.com/us/app/id556653197
+
+热门分类:
+  购物(免费) (3款)
+  娱乐(免费) (2款)
 ```
 
 ### json 格式

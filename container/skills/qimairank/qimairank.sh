@@ -88,27 +88,19 @@ new Promise(function(resolve, reject) {
     }
     var lines = [];
 
-    // --- 完整榜单 ---
-    lines.push('iOS 24h 排名上升榜 (' + country.toUpperCase() + ' ' + brand + ')');
-    lines.push('');
-    for (var j = 0; j < apps.length; j++) {
-      var a = apps[j];
-      lines.push(a.rank + '. ' + a.appName + ' | +' + a.rankChange + ' | 总榜#' + a.overallRank + ' | ' + a.categoryName + '#' + a.categoryRank);
-    }
-
-    // --- 榜单小结（底部）---
+    // --- 榜单小结（按上升幅度排序的Top 20）---
     var sorted = apps.slice().sort(function(a, b) { return parseInt(b.rankChange) - parseInt(a.rankChange); });
-    var topMovers = sorted.slice(0, 10);
+    var topMovers = sorted.slice(0, 20);
+    lines.push('iOS 24h 排名上升榜 - 冲榜最猛 Top 20 (' + country.toUpperCase() + ' ' + brand + ')');
     lines.push('');
-    lines.push('--- 榜单小结 ---');
-    lines.push('');
-    lines.push('冲榜最猛 Top 10:');
     for (var m = 0; m < topMovers.length; m++) {
-      lines.push('  ' + (m + 1) + '. ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
-      lines.push('  ' + topMovers[m].appUrl);
+      lines.push((m + 1) + '. ' + topMovers[m].appName + ' (+' + topMovers[m].rankChange + ')');
+      lines.push('   ' + topMovers[m].appUrl);
     }
     var hotApps = apps.filter(function(a) { return parseInt(a.overallRank) <= 20; });
     if (hotApps.length > 0) {
+      lines.push('');
+      lines.push('--- 榜单总结 ---');
       lines.push('');
       lines.push('头部热门 (总榜前20还在涨):');
       for (var h = 0; h < hotApps.length; h++) {
